@@ -17,25 +17,41 @@ import { BarbershopLanding } from './components/BarbershopLanding';
 import { SignUpForm } from './components/SignUpForm';
 import { LoginForm } from './components/LoginForm';
 import { motion, AnimatePresence } from 'motion/react';
-import { authApi, reservationsApi, servicesApi } from './lib/api';
+import { authApi, reservationsApi, servicesApi, settingsApi } from './lib/api';
 import { Reservation, Service, Barbershop } from './types';
 
 export default function App() {
   const [viewMode, setViewMode] = React.useState<'admin' | 'customer'>('customer');
   const [authView, setAuthView] = React.useState<'landing' | 'login' | 'signup'>('landing');
   const [isAdminLoggedIn, setIsAdminLoggedIn] = React.useState(false);
+  
   const [currentUser, setCurrentUser] = React.useState<any>(null);
   const [currentBarbershop, setCurrentBarbershop] = React.useState<any>(null);
   const [selectedBarbershop, setSelectedBarbershop] = React.useState<Barbershop | null>(null);
+  const [profileData, setProfileData] = React.useState<any>(null);
+
   const [activeTab, setActiveTab] = React.useState('dashboard');
   const [reservations, setReservations] = React.useState<Reservation[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
+  
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isServiceModalOpen, setIsServiceModalOpen] = React.useState(false);
   const [editingService, setEditingService] = React.useState<Service | null>(null);
   const [loading, setLoading] = React.useState(true);
 
-  // On mount: restore session from stored token
+  // Función para cargar los datos públicos de la barbería (Settings)
+  const loadProfileData = React.useCallback(async () => {
+    if (authApi.isLoggedIn()) {
+      try {
+        const data = await settingsApi.get();
+        setProfileData(data);
+      } catch (error) {
+        console.error("Error cargando perfil:", error);
+      }
+    }
+  }, []);
+
+  // Al montar la app: restaurar sesión si hay token
   React.useEffect(() => {
     if (authApi.isLoggedIn()) {
       authApi.me()
@@ -44,19 +60,35 @@ export default function App() {
           setCurrentBarbershop(barbershop);
           setIsAdminLoggedIn(true);
           setViewMode('admin');
+          loadProfileData(); // Cargar la info del Layout
         })
         .catch(() => authApi.logout())
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [loadProfileData]);
 
-  // Load data when admin logs in
+  // Cargar reservas y servicios cuando el admin entra
   React.useEffect(() => {
     if (!isAdminLoggedIn) return;
-    reservationsApi.list().then(data => setReservations(data.map((r) => ({ id: String(r.id), clientName: r.client_name, service: r.service_name, barber: r.barber_name, date: r.date, time: r.time, status: r.status, price: r.price })))).catch(console.error);
-    servicesApi.list().then(data => setServices(data.map((s: any) => ({ ...s, id: String(s.id) })))).catch(console.error);
+    
+    reservationsApi.list()
+      .then(data => setReservations(data.map((r: any) => ({ 
+        id: String(r.id), 
+        clientName: r.client_name, 
+        service: r.service_name, 
+        barber: r.barber_name, 
+        date: r.date, 
+        time: r.time, 
+        status: r.status, 
+        price: r.price 
+      }))))
+      .catch(console.error);
+      
+    servicesApi.list()
+      .then(data => setServices(data.map((s: any) => ({ ...s, id: String(s.id) }))))
+      .catch(console.error);
   }, [isAdminLoggedIn]);
 
   const handleLogin = async (formData: { email: string; password: string }) => {
@@ -65,6 +97,7 @@ export default function App() {
     setCurrentBarbershop(barbershop);
     setIsAdminLoggedIn(true);
     setViewMode('admin');
+    loadProfileData();
   };
 
   const handleSignUp = async (formData: any) => {
@@ -73,6 +106,7 @@ export default function App() {
     setCurrentBarbershop(barbershop);
     setIsAdminLoggedIn(true);
     setViewMode('admin');
+    loadProfileData();
   };
 
   const handleLogout = () => {
@@ -80,23 +114,38 @@ export default function App() {
     setIsAdminLoggedIn(false);
     setCurrentUser(null);
     setCurrentBarbershop(null);
+    setProfileData(null);
     setReservations([]);
     setServices([]);
     setAuthView('landing');
     setViewMode('customer');
   };
 
-  const handleAddReservation = async (newRes: Omit<Reservation, 'id'>) => {
+  const handleAddReservation = async (newRes: any) => {
     try {
       const created = await reservationsApi.create({
         clientName: newRes.clientName,
+        clientEmail: newRes.clientEmail,   
+        clientPhone: newRes.clientPhone,   
         serviceName: newRes.service,
         barberName: newRes.barber,
         date: newRes.date,
         time: newRes.time,
         price: newRes.price,
       });
-      setReservations(prev => [{ ...created, id: String(created.id) }, ...prev]);
+      
+      const formattedRes = {
+        id: String(created.id),
+        clientName: created.client_name,
+        service: created.service_name,
+        barber: created.barber_name,
+        date: created.date,
+        time: created.time,
+        status: created.status,
+        price: created.price
+      };
+
+      setReservations(prev => [formattedRes, ...prev]);
     } catch (err: any) {
       alert(err.message);
     }
@@ -136,7 +185,7 @@ export default function App() {
     );
   }
 
-  // Customer Flow
+  // ── Customer Flow ──
   if (viewMode === 'customer') {
     if (!selectedBarbershop) {
       return <BarbershopSearch onSelectBarbershop={setSelectedBarbershop} onAdminClick={() => setViewMode('admin')} />;
@@ -144,15 +193,13 @@ export default function App() {
     return (
       <CustomerBooking
         barbershop={selectedBarbershop}
-        services={services}
-        onBookingComplete={handleAddReservation}
         onBackToSearch={() => setSelectedBarbershop(null)}
         onBackToAdmin={() => setViewMode('admin')}
       />
     );
   }
 
-  // Admin Flow
+  // ── Admin Flow ──
   if (!isAdminLoggedIn) {
     if (authView === 'login') return <LoginForm onLogin={handleLogin} onBackToLanding={() => setAuthView('landing')} onSwitchToSignUp={() => setAuthView('signup')} />;
     if (authView === 'signup') return <SignUpForm onSignUp={handleSignUp} onBackToLanding={() => setAuthView('landing')} onSwitchToLogin={() => setAuthView('login')} />;
@@ -161,56 +208,68 @@ export default function App() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <Dashboard reservations={reservations} onNewReservation={() => setIsModalOpen(true)} />;
-      case 'reservations': return (
-        <Reservations
-          reservations={reservations}
-          onNewReservation={() => setIsModalOpen(true)}
-          onStatusChange={async (id, status) => {
-            const updated = await reservationsApi.updateStatus(id, status);
-            setReservations(prev => prev.map(r => r.id === String(id) ? { ...r, status: updated.status } : r));
-          }}
-        />
-      );
-      case 'clients': return <Clients barbershopId={currentBarbershop?.id} />;
-      case 'services': return (
-        <Services
-          services={services}
-          onAddService={() => { setEditingService(null); setIsServiceModalOpen(true); }}
-          onEditService={(s) => { setEditingService(s); setIsServiceModalOpen(true); }}
-          onDeleteService={handleDeleteService}
-        />
-      );
-      case 'barbers': return <Barbers barbershopId={currentBarbershop?.id} />;
-      case 'automations': return <Automations barbershopId={currentBarbershop?.id} />;
-      case 'reports': return <Reports />;
-      case 'subscription': return <Subscription />;
-      case 'settings': return <Settings />;
-      default: return <Dashboard reservations={reservations} onNewReservation={() => setIsModalOpen(true)} />;
+      case 'dashboard': 
+        return <Dashboard reservations={reservations} onNewReservation={() => setIsModalOpen(true)} />;
+      case 'reservations': 
+        return (
+          <Reservations
+            reservations={reservations}
+            onNewReservation={() => setIsModalOpen(true)}
+            onStatusChange={async (id, status) => {
+              const updated = await reservationsApi.updateStatus(id, status);
+              setReservations(prev => prev.map(r => r.id === String(id) ? { ...r, status: updated.status } : r));
+            }}
+          />
+        );
+      case 'clients': 
+        return <Clients barbershopId={currentBarbershop?.id} />;
+      case 'services': 
+        return (
+          <Services
+            services={services}
+            onAddService={() => { setEditingService(null); setIsServiceModalOpen(true); }}
+            onEditService={(s) => { setEditingService(s); setIsServiceModalOpen(true); }}
+            onDeleteService={handleDeleteService}
+          />
+        );
+      case 'barbers': 
+        return <Barbers barbershopId={currentBarbershop?.id} />;
+      case 'automations': 
+        return <Automations barbershopId={currentBarbershop?.id} />;
+      case 'reports': 
+        return <Reports />;
+      case 'subscription': 
+        return <Subscription />;
+      case 'settings': 
+        return <Settings onSettingsUpdated={loadProfileData} />; // <-- Aquí pasamos la función para refrescar
+      default: 
+        return <Dashboard reservations={reservations} onNewReservation={() => setIsModalOpen(true)} />;
     }
   };
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+    <Layout 
+      activeTab={activeTab} 
+      setActiveTab={setActiveTab} 
+      onLogout={handleLogout}
+      barbershopName={profileData?.name}   // <-- Se pasa al layout
+      barbershopImage={profileData?.image} // <-- Se pasa al layout
+    >
       <div className="mb-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            Admin: {currentBarbershop?.name || '...'}
+            Admin: {profileData?.name || 'Cargando...'}
           </span>
-          <button onClick={handleLogout} className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:text-red-600 ml-2">
-            Cerrar Sesión
-          </button>
         </div>
-        <button onClick={() => setViewMode('customer')} className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors">
-          Ver Buscador de Clientes
-        </button>
       </div>
+      
       <AnimatePresence mode="wait">
         <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2, ease: "easeOut" }}>
           {renderContent()}
         </motion.div>
       </AnimatePresence>
+      
       <ReservationForm services={services} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleAddReservation} />
       <ServiceForm isOpen={isServiceModalOpen} onClose={() => setIsServiceModalOpen(false)} onSubmit={handleAddService} initialData={editingService} />
     </Layout>

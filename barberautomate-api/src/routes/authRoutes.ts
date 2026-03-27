@@ -1,92 +1,90 @@
-import { Router, Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
-import { generateToken, authMiddleware, AuthRequest } from '../auth.js';
+import { Router, Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { db } from '../database.js';
+
 const router = Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+
+export interface AuthRequest extends Request {
+  user?: { barbershopId: number };
+}
+
+// Middleware para proteger las rutas
+export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'No token provided' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { barbershopId: number };
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
 
 // POST /api/auth/register
 router.post('/register', async (req: Request, res: Response) => {
-  const { barbershopName, address, ownerName, email, phone, password, plan } = req.body;
+  try {
+    // 1. Extraemos los datos siendo flexibles con los nombres que envíe el frontend
+    const email = req.body.email;
+    const password = req.body.password;
+    const name = req.body.name || req.body.fullName || req.body.barbershopName || req.body.ownerName || 'Barbería';
+    const phone = req.body.phone || null;
 
-  if (!barbershopName || !address || !ownerName || !email || !password) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios' });
-  }
-
-  // Check email not in use
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-  if (existing) {
-    return res.status(409).json({ error: 'Este email ya está registrado' });
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  // Transaction: create barbershop + user together
-  const create = db.transaction(() => {
-    const shopResult = db.prepare(`
-      INSERT INTO barbershops (name, address, phone, email, plan)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(barbershopName, address, phone || null, email, plan || 'Básico');
-
-    const barbershopId = shopResult.lastInsertRowid as number;
-
-    const userResult = db.prepare(`
-      INSERT INTO users (barbershop_id, owner_name, email, phone, password_hash)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(barbershopId, ownerName, email, phone || null, passwordHash);
-
-    // Insert default automations
-    const defaultAutomations = [
-      { title: 'Recordatorio 24h', description: 'Envía un SMS y WhatsApp 24 horas antes de la cita.', type: 'reminder', enabled: 1 },
-      { title: 'Confirmación Inmediata', description: 'Envía un correo al momento de realizar la reserva.', type: 'confirmation', enabled: 1 },
-      { title: 'Seguimiento Post-Visita', description: 'Mensaje 2 días después para pedir feedback.', type: 'follow-up', enabled: 0 },
-      { title: 'Promo Reactivación', description: 'Cupón de descuento para clientes con +30 días sin venir.', type: 'promo', enabled: 1 },
-    ];
-    const insertAuto = db.prepare(`INSERT INTO automations (barbershop_id, title, description, type, enabled) VALUES (?, ?, ?, ?, ?)`);
-    for (const a of defaultAutomations) {
-      insertAuto.run(barbershopId, a.title, a.description, a.type, a.enabled);
+    // 2. Solo exigimos obligatoriamente el email y el password
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios (email o contraseña)' });
     }
 
-    return { barbershopId, userId: userResult.lastInsertRowid as number };
-  });
+    // 3. Comprobar si el email ya existe
+    const existing = await db.execute({
+      sql: 'SELECT id FROM barbershops WHERE email = ?',
+      args: [email]
+    });
 
-  try {
-    const { barbershopId, userId } = create();
-    const token = generateToken({ userId, barbershopId, email });
-    const barbershop = db.prepare('SELECT * FROM barbershops WHERE id = ?').get(barbershopId);
-    res.status(201).json({ token, user: { id: userId, ownerName, email }, barbershop });
-  } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al crear la cuenta' });
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'El email ya está registrado' });
+    }
+
+    // 4. Crear la barbería / administrador (Añadimos el teléfono a la consulta)
+    const result = await db.execute({
+      sql: 'INSERT INTO barbershops (name, email, password, phone) VALUES (?, ?, ?, ?)',
+      args: [name, email, password, phone]
+    });
+
+    const barbershopId = Number(result.lastInsertRowid);
+    const token = jwt.sign({ barbershopId }, JWT_SECRET);
+    
+    res.status(201).json({ token, barbershop: { id: barbershopId, name, email } });
+  } catch (err) {
+    console.error('Error en registro:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
 // POST /api/auth/login
 router.post('/login', async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email y contraseña requeridos' });
+  try {
+    const { email, password } = req.body;
+    
+    const result = await db.execute({
+      sql: 'SELECT * FROM barbershops WHERE email = ? AND password = ?',
+      args: [email, password]
+    });
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    const barbershop = result.rows[0];
+    const token = jwt.sign({ barbershopId: Number(barbershop.id) }, JWT_SECRET);
+    
+    res.json({ token, barbershop: { id: Number(barbershop.id), name: barbershop.name, email: barbershop.email } });
+  } catch (err) {
+    console.error('Error en login:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as any;
-  if (!user) {
-    return res.status(401).json({ error: 'Credenciales incorrectas' });
-  }
-
-  const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) {
-    return res.status(401).json({ error: 'Credenciales incorrectas' });
-  }
-
-  const barbershop = db.prepare('SELECT * FROM barbershops WHERE id = ?').get(user.barbershop_id) as any;
-  const token = generateToken({ userId: user.id, barbershopId: user.barbershop_id, email });
-  res.json({ token, user: { id: user.id, ownerName: user.owner_name, email }, barbershop });
-});
-
-// GET /api/auth/me
-router.get('/me', authMiddleware, (req: AuthRequest, res: Response) => {
-  const user = db.prepare('SELECT id, owner_name, email, phone FROM users WHERE id = ?').get(req.user!.userId) as any;
-  const barbershop = db.prepare('SELECT * FROM barbershops WHERE id = ?').get(req.user!.barbershopId);
-  res.json({ user, barbershop });
 });
 
 export default router;

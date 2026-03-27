@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { initDatabase } from './database.js';
+import { initDB } from './database.js';
 import authRoutes from './routes/authRoutes.js';
 import apiRoutes from './routes/apiRoutes.js';
 import reservationRoutes from './routes/reservationRoutes.js';
@@ -15,7 +15,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
 app.use(cors());app.use(express.json());
 
 // Init DB
-initDatabase();
+initDB();
 
 // Routes
 app.use('/api/auth', authRoutes);

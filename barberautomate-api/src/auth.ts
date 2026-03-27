@@ -12,7 +12,7 @@ export interface AuthRequest extends Request {
 }
 
 export function generateToken(payload: { userId: number; barbershopId: number; email: string }) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
 }
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {

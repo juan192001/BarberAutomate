@@ -18,26 +18,18 @@ import { cn } from '../lib/utils';
 interface BarbershopLandingProps {
   onLogin: () => void;
   onSignUp: () => void;
-  onBack?: () => void;
 }
 
-export const BarbershopLanding = ({ onLogin, onSignUp, onBack }: BarbershopLandingProps) => {
+export const BarbershopLanding = ({ onLogin, onSignUp }: BarbershopLandingProps) => {
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900">
       {/* Navigation */}
       <nav className="border-b border-slate-100 py-4 px-6 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-50">
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <button onClick={onBack} className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-            </button>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-slate-900 text-white rounded-lg">
-              <Scissors size={20} />
-            </div>
-            <span className="font-bold text-xl tracking-tight">BarberAutomate</span>
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-slate-900 text-white rounded-lg">
+            <Scissors size={20} />
           </div>
+          <span className="font-bold text-xl tracking-tight">BarberAutomate</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
           <a href="#features" className="hover:text-slate-900">Funcionalidades</a>
@@ -110,7 +102,7 @@ export const BarbershopLanding = ({ onLogin, onSignUp, onBack }: BarbershopLandi
         </div>
       </section>
 
-      {/* Features Grid */}
+      {/* Features Grid - SE ELIMINARON LOS SUBTÍTULOS (descripciones) AQUÍ */}
       <section id="features" className="py-24 bg-slate-50 px-6">
         <div className="max-w-7xl mx-auto space-y-16">
           <div className="text-center space-y-4 max-w-2xl mx-auto">
@@ -120,10 +112,10 @@ export const BarbershopLanding = ({ onLogin, onSignUp, onBack }: BarbershopLandi
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
-              { icon: <Calendar />, title: 'Agenda Inteligente', desc: 'Sincronización total y recordatorios automáticos por WhatsApp.' },
-              { icon: <Users />, title: 'CRM de Clientes', desc: 'Historial de cortes, preferencias y fidelización automática.' },
-              { icon: <BarChart3 />, title: 'Reportes en Vivo', desc: 'Controla tus ingresos, comisiones y stock en tiempo real.' },
-              { icon: <Smartphone />, title: 'App para Barberos', desc: 'Cada barbero gestiona su propia agenda desde su móvil.' }
+              { icon: <Calendar />, title: 'Agenda Inteligente' },
+              { icon: <Users />, title: 'CRM de Clientes' },
+              { icon: <BarChart3 />, title: 'Reportes en Vivo' },
+              { icon: <Smartphone />, title: 'App para Barberos' }
             ].map((f, i) => (
               <Card key={i} className="border-none shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-8 space-y-4">
@@ -131,7 +123,6 @@ export const BarbershopLanding = ({ onLogin, onSignUp, onBack }: BarbershopLandi
                     {f.icon}
                   </div>
                   <h4 className="text-xl font-bold">{f.title}</h4>
-                  <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
                 </CardContent>
               </Card>
             ))}
@@ -139,24 +130,23 @@ export const BarbershopLanding = ({ onLogin, onSignUp, onBack }: BarbershopLandi
         </div>
       </section>
 
-      {/* Benefits Section */}
+      {/* Benefits Section - SE ELIMINARON LOS SUBTÍTULOS AQUÍ */}
       <section className="py-24 px-6 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
           <div className="space-y-10">
             <h2 className="text-4xl font-bold tracking-tight">¿Por qué unirte a la red BarberAutomate?</h2>
             <div className="space-y-6">
               {[
-                { title: 'Visibilidad Inmediata', desc: 'Aparece en nuestro buscador y atrae nuevos clientes de tu zona.' },
-                { title: 'Pagos Seguros', desc: 'Acepta pagos online y reduce las ausencias (no-shows) con depósitos.' },
-                { title: 'Automatización', desc: 'Envía recordatorios, encuestas de satisfacción y promos sin mover un dedo.' }
+                { title: 'Visibilidad Inmediata' },
+                { title: 'Pagos Seguros' },
+                { title: 'Automatización' }
               ].map((b, i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="mt-1 text-emerald-500">
+                <div key={i} className="flex gap-4 items-center">
+                  <div className="text-emerald-500">
                     <CheckCircle2 size={24} />
                   </div>
                   <div>
                     <h5 className="font-bold text-lg">{b.title}</h5>
-                    <p className="text-slate-500">{b.desc}</p>
                   </div>
                 </div>
               ))}

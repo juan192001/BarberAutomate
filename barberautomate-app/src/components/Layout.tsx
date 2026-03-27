@@ -45,9 +45,19 @@ interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  onLogout: () => void;
+  barbershopName?: string;  // <-- AÑADIDO
+  barbershopImage?: string; // <-- AÑADIDO
 }
 
-export const Layout = ({ children, activeTab, setActiveTab }: LayoutProps) => {
+export const Layout = ({ 
+  children, 
+  activeTab, 
+  setActiveTab, 
+  onLogout,
+  barbershopName,  // <-- RECIBIDO
+  barbershopImage  // <-- RECIBIDO
+}: LayoutProps) => {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
 
   const menuItems = [
@@ -92,7 +102,10 @@ export const Layout = ({ children, activeTab, setActiveTab }: LayoutProps) => {
           </nav>
 
           <div className="pt-4 mt-4 border-t border-slate-100">
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all">
+            <button 
+              onClick={onLogout}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all"
+            >
               <LogOut size={18} />
               <span>Cerrar Sesión</span>
             </button>
@@ -132,11 +145,17 @@ export const Layout = ({ children, activeTab, setActiveTab }: LayoutProps) => {
             
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold leading-none">The Barber Club</p>
+                {/* <-- APLICADO EL NOMBRE DINÁMICO --> */}
+                <p className="text-sm font-semibold leading-none">{barbershopName || 'Cargando...'}</p>
                 <p className="text-xs text-slate-500 mt-1">Admin Panel</p>
               </div>
-              <div className="w-9 h-9 rounded-full bg-slate-200 overflow-hidden border border-slate-300">
-                <img src="https://picsum.photos/seed/admin/100" alt="User" referrerPolicy="no-referrer" />
+              <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500 overflow-hidden border border-slate-300">
+                {/* <-- APLICADA LA IMAGEN DINÁMICA --> */}
+                {barbershopImage ? (
+                  <img src={barbershopImage} alt="Barbería" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
+                ) : (
+                  <span>{barbershopName ? barbershopName.charAt(0).toUpperCase() : '?'}</span>
+                )}
               </div>
             </div>
           </div>

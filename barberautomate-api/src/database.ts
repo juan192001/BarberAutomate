@@ -1,112 +1,97 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { createClient } from '@libsql/client';
+import dotenv from 'dotenv';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '../data/barberautomate.db');
+dotenv.config();
 
-// Ensure data directory exists
-import fs from 'fs';
-const dataDir = path.join(__dirname, '../data');
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+const url = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
-export const db = new Database(DB_PATH);
+if (!url || !authToken) {
+  throw new Error("Faltan las variables de entorno de Turso (TURSO_DATABASE_URL o TURSO_AUTH_TOKEN)");
+}
 
-// Enable WAL mode for better performance
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Conectarse a la nube de Turso
+export const db = createClient({
+  url: url,
+  authToken: authToken,
+});
 
-export function initDatabase() {
-  db.exec(`
-    -- Barbershops (tenants of the SaaS)
-    CREATE TABLE IF NOT EXISTS barbershops (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      address TEXT NOT NULL,
-      phone TEXT,
-      email TEXT,
-      description TEXT,
-      image TEXT,
-      rating REAL DEFAULT 5.0,
-      plan TEXT DEFAULT 'Básico' CHECK(plan IN ('Básico', 'Profesional', 'Premium')),
-      created_at TEXT DEFAULT (datetime('now'))
-    );
+// Crear las tablas si no existen (ahora usamos executeMultiple para Turso)
+export async function initDB() {
+  try {
+    await db.executeMultiple(`
+      CREATE TABLE IF NOT EXISTS barbershops (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        phone TEXT,
+        address TEXT,
+        description TEXT,
+        image TEXT,
+        rating REAL DEFAULT 5.0,
+        reviews INTEGER DEFAULT 0,
+        plan TEXT DEFAULT 'basic',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
 
-    -- Admin users (owners of barbershops)
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      barbershop_id INTEGER NOT NULL REFERENCES barbershops(id) ON DELETE CASCADE,
-      owner_name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      phone TEXT,
-      password_hash TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS services (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        barbershop_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        duration TEXT NOT NULL,
+        price REAL NOT NULL,
+        status TEXT DEFAULT 'active',
+        FOREIGN KEY (barbershop_id) REFERENCES barbershops (id)
+      );
 
-    -- Barbers (employees)
-    CREATE TABLE IF NOT EXISTS barbers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      barbershop_id INTEGER NOT NULL REFERENCES barbershops(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      specialty TEXT,
-      availability TEXT DEFAULT '9:00 - 19:00',
-      image TEXT,
-      active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS barbers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        barbershop_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        specialty TEXT,
+        availability TEXT,
+        image TEXT,
+        active BOOLEAN DEFAULT 1,
+        FOREIGN KEY (barbershop_id) REFERENCES barbershops (id)
+      );
 
-    -- Services offered
-    CREATE TABLE IF NOT EXISTS services (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      barbershop_id INTEGER NOT NULL REFERENCES barbershops(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      duration TEXT NOT NULL,
-      price REAL NOT NULL,
-      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
-      created_at TEXT DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS clients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        barbershop_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        notes TEXT,
+        last_visit DATETIME,
+        total_appointments INTEGER DEFAULT 0,
+        FOREIGN KEY (barbershop_id) REFERENCES barbershops (id)
+      );
 
-    -- Clients (customers)
-    CREATE TABLE IF NOT EXISTS clients (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      barbershop_id INTEGER NOT NULL REFERENCES barbershops(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      phone TEXT,
-      email TEXT,
-      notes TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    -- Reservations / Appointments
-    CREATE TABLE IF NOT EXISTS reservations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      barbershop_id INTEGER NOT NULL REFERENCES barbershops(id) ON DELETE CASCADE,
-      client_name TEXT NOT NULL,
-      client_email TEXT,
-      client_phone TEXT,
-      service_id INTEGER REFERENCES services(id),
-      service_name TEXT NOT NULL,
-      barber_id INTEGER REFERENCES barbers(id),
-      barber_name TEXT NOT NULL,
-      date TEXT NOT NULL,
-      time TEXT NOT NULL,
-      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'confirmed', 'completed', 'cancelled')),
-      price REAL NOT NULL,
-      notes TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    -- Automations config per barbershop
-    CREATE TABLE IF NOT EXISTS automations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      barbershop_id INTEGER NOT NULL REFERENCES barbershops(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      description TEXT,
-      type TEXT NOT NULL CHECK(type IN ('reminder', 'confirmation', 'follow-up', 'promo')),
-      enabled INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  console.log('✅ Database initialized at', DB_PATH);
+      CREATE TABLE IF NOT EXISTS reservations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        barbershop_id INTEGER NOT NULL,
+        client_name TEXT NOT NULL,
+        client_email TEXT,
+        client_phone TEXT,
+        service_id INTEGER,
+        service_name TEXT NOT NULL,
+        barber_id INTEGER,
+        barber_name TEXT NOT NULL,
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        price REAL NOT NULL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (barbershop_id) REFERENCES barbershops (id),
+        FOREIGN KEY (service_id) REFERENCES services (id),
+        FOREIGN KEY (barber_id) REFERENCES barbers (id)
+      );
+    `);
+    console.log('✅ Base de datos conectada a Turso y tablas inicializadas');
+  } catch (error) {
+    console.error('❌ Error al inicializar la base de datos en Turso:', error);
+  }
 }

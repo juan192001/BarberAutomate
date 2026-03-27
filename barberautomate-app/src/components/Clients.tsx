@@ -3,19 +3,37 @@ import { Search, UserPlus, Mail, Phone, Calendar, MoreVertical, ExternalLink } f
 import { Card, CardContent, Badge, Button } from './UI';
 import { clientsApi } from '../lib/api';
 import { cn } from '../lib/utils';
+import { ClientForm } from './ClientForm'; // <-- Importamos nuestro nuevo formulario
 
 export const Clients = ({ barbershopId }: { barbershopId?: number }) => {
   const [clients, setClients] = React.useState<any[]>([]);
   const [selectedClient, setSelectedClient] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState('');
+  const [isFormOpen, setIsFormOpen] = React.useState(false); // Estado para abrir/cerrar el modal
 
-  React.useEffect(() => {
+  const loadClients = () => {
+    setLoading(true);
     clientsApi.list()
       .then(setClients)
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => {
+    loadClients();
   }, [barbershopId]);
+
+  // Función para guardar el cliente
+  const handleAddClient = async (formData: any) => {
+    try {
+      await clientsApi.create(formData);
+      setIsFormOpen(false);
+      loadClients(); // Recargamos la lista para ver al nuevo cliente de inmediato
+    } catch (err: any) {
+      alert(err.message || "Error al crear el cliente");
+    }
+  };
 
   const filtered = clients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -36,7 +54,10 @@ export const Clients = ({ barbershopId }: { barbershopId?: number }) => {
           <h2 className="text-2xl font-bold tracking-tight">Directorio de Clientes</h2>
           <p className="text-slate-500">Gestiona la base de datos de tus clientes y su historial.</p>
         </div>
-        <Button className="gap-2"><UserPlus size={18} /> Nuevo Cliente</Button>
+        {/* Aquí le damos vida al botón */}
+        <Button className="gap-2" onClick={() => setIsFormOpen(true)}>
+          <UserPlus size={18} /> Nuevo Cliente
+        </Button>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -53,7 +74,7 @@ export const Clients = ({ barbershopId }: { barbershopId?: number }) => {
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-slate-500">
               <p className="font-medium">{search ? 'No se encontraron clientes.' : 'Aún no hay clientes registrados.'}</p>
-              <p className="text-sm mt-1">Los clientes aparecen aquí cuando hacen una reserva online.</p>
+              <p className="text-sm mt-1">Los clientes aparecen aquí cuando hacen una reserva online, o puedes añadirlos manualmente.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -121,6 +142,15 @@ export const Clients = ({ barbershopId }: { barbershopId?: number }) => {
                       </div>
                     </div>
                   )}
+                  {selectedClient.notes && (
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                      <div className="p-2 bg-white rounded-lg text-slate-400 shadow-sm"><FileText size={16} /></div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase font-bold">Notas</p>
+                        <p className="text-sm font-medium">{selectedClient.notes}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="pt-6 border-t border-slate-100">
                   <h5 className="text-sm font-bold mb-4">Estadísticas</h5>
@@ -130,17 +160,23 @@ export const Clients = ({ barbershopId }: { barbershopId?: number }) => {
                       <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Citas</p>
                     </div>
                     <div className="p-4 bg-slate-50 rounded-xl text-center">
-                      <p className="text-2xl font-bold">{selectedClient.last_visit || '—'}</p>
+                      <p className="text-xl font-bold mt-1 truncate">{selectedClient.last_visit || '—'}</p>
                       <p className="text-[10px] text-slate-400 uppercase font-bold mt-1">Última visita</p>
                     </div>
                   </div>
                 </div>
-                <Button className="w-full gap-2"><Calendar size={16} /> Agendar Cita</Button>
               </CardContent>
             </Card>
           </div>
         )}
       </div>
+
+      {/* Renderizamos el modal al final */}
+      <ClientForm 
+        isOpen={isFormOpen} 
+        onClose={() => setIsFormOpen(false)} 
+        onSubmit={handleAddClient} 
+      />
     </div>
   );
 };

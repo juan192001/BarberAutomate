@@ -95,6 +95,16 @@ export const automationsApi = {
 export const dashboardApi = {
   get: () => request<any>('/api/dashboard'),
 };
+// ── SETTINGS ──────────────────────────────────────────────
+export const settingsApi = {
+  get: () => request<any>('/api/settings'),
+  update: (data: any) => request<any>('/api/settings', { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+// ── REPORTS ──────────────────────────────────────────────
+export const reportsApi = {
+  get: () => request<any>('/api/reports'),
+};
 
 // ── PUBLIC (no auth) ──────────────────────────────────────────────
 export const publicApi = {
@@ -104,5 +114,10 @@ export const publicApi = {
   },
   getServices: (barbershopId: string | number) => request<any[]>(`/api/public/barbershops/${barbershopId}/services`),
   getBarbers: (barbershopId: string | number) => request<any[]>(`/api/public/barbershops/${barbershopId}/barbers`),
+  
+  // NUEVA FUNCIÓN AÑADIDA: Obtiene las horas que ya están cogidas
+  getBookedTimes: (barbershopId: string | number, barberId: string | number, barberName: string, date: string) => 
+    request<string[]>(`/api/public/barbershops/${barbershopId}/booked-times?barberId=${barberId}&barberName=${encodeURIComponent(barberName)}&date=${date}`),
+    
   book: (data: any) => request<any>('/api/public/bookings', { method: 'POST', body: JSON.stringify(data) }),
 };

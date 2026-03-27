@@ -1,105 +1,159 @@
 import React from 'react';
-import { 
-  Building2, 
-  Clock, 
-  Bell, 
-  Palette, 
-  ShieldCheck, 
-  CreditCard,
-  Save,
-  Camera
-} from 'lucide-react';
+import { Save, Store, MapPin, Phone, Mail, Image as ImageIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, Button } from './UI';
+import { settingsApi } from '../lib/api';
 
-export const Settings = () => {
+interface SettingsProps {
+  onSettingsUpdated?: () => void;
+}
+
+export const Settings = ({ onSettingsUpdated }: SettingsProps) => {
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [message, setMessage] = React.useState({ type: '', text: '' });
+  
+  const [formData, setFormData] = React.useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    description: '',
+    image: ''
+  });
+
+  React.useEffect(() => {
+    settingsApi.get()
+      .then(data => {
+        setFormData({
+          name: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          address: data.address || '',
+          description: data.description || '',
+          image: data.image || ''
+        });
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage({ type: '', text: '' });
+    
+    try {
+      await settingsApi.update({
+        name: formData.name,
+        phone: formData.phone,
+        address: formData.address,
+        description: formData.description,
+        image: formData.image
+      });
+      setMessage({ type: 'success', text: '¡Configuración guardada correctamente!' });
+      
+      // Avisar a la App principal que recargue el nombre y la foto
+      if (onSettingsUpdated) {
+        onSettingsUpdated();
+      }
+      
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message || 'Error al guardar' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Configuración del Sistema</h2>
-        <p className="text-slate-500">Personaliza tu espacio de trabajo y preferencias de negocio.</p>
+        <h2 className="text-2xl font-bold tracking-tight">Configuración del Negocio</h2>
+        <p className="text-slate-500">Actualiza la información pública de tu barbería.</p>
       </div>
 
-      <div className="space-y-6">
-        {/* General Info */}
+      <form onSubmit={handleSubmit}>
         <Card>
-          <CardHeader className="flex flex-row items-center gap-3">
-            <Building2 size={20} className="text-slate-400" />
-            <h4 className="font-bold">Información de la Barbería</h4>
+          <CardHeader>
+            <h4 className="font-bold">Perfil Público</h4>
+            <p className="text-xs text-slate-500">Así es como los clientes verán tu barbería en el buscador.</p>
           </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="flex flex-col md:flex-row gap-8">
-              <div className="space-y-4">
-                <div className="relative group">
-                  <div className="w-24 h-24 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 overflow-hidden">
-                    <img src="https://picsum.photos/seed/logo/200" alt="Logo" className="w-full h-full object-cover opacity-50" referrerPolicy="no-referrer" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                      <Camera size={20} className="text-white" />
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-center mt-2 font-bold text-slate-400 uppercase">Logo</p>
-                </div>
+          <CardContent className="space-y-6 mt-4">
+            
+            {message.text && (
+              <div className={`p-4 rounded-lg text-sm font-medium ${message.type === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                {message.text}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                  <Store size={14} /> Nombre de la Barbería
+                </label>
+                <input type="text" name="name" required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-900" value={formData.name} onChange={handleChange} />
               </div>
               
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Nombre Comercial</label>
-                  <input type="text" defaultValue="The Barber Club" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-200" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Teléfono de Contacto</label>
-                  <input type="text" defaultValue="+34 600 000 000" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-200" />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Dirección Física</label>
-                  <input type="text" defaultValue="Calle de la Elegancia, 12, Madrid" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-200" />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                  <Mail size={14} /> Email (Solo lectura)
+                </label>
+                <input type="email" name="email" disabled className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-500 cursor-not-allowed" value={formData.email} onChange={handleChange} />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                  <Phone size={14} /> Teléfono Público
+                </label>
+                <input type="tel" name="phone" placeholder="Ej. +34 600 000 000" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-900" value={formData.phone} onChange={handleChange} />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                  <MapPin size={14} /> Dirección Completa
+                </label>
+                <input type="text" name="address" placeholder="Ej. Calle Principal 123, Madrid" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-900" value={formData.address} onChange={handleChange} />
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Business Hours */}
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-3">
-            <Clock size={20} className="text-slate-400" />
-            <h4 className="font-bold">Horarios de Atención</h4>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-3">
-              {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((day) => (
-                <div key={day} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                  <span className="text-sm font-medium w-24">{day}</span>
-                  <div className="flex items-center gap-4">
-                    {day === 'Domingo' ? (
-                      <span className="text-xs font-bold text-red-500 uppercase">Cerrado</span>
-                    ) : (
-                      <>
-                        <input type="time" defaultValue="09:00" className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs" />
-                        <span className="text-slate-300">-</span>
-                        <input type="time" defaultValue="20:00" className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs" />
-                      </>
-                    )}
-                  </div>
-                  <div className="w-12 flex justify-end">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" defaultChecked={day !== 'Domingo'} className="sr-only peer" />
-                      <div className="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-slate-900"></div>
-                    </label>
-                  </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                <ImageIcon size={14} /> URL de la Imagen de Portada
+              </label>
+              <input type="url" name="image" placeholder="https://ejemplo.com/mifoto.jpg" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-900" value={formData.image} onChange={handleChange} />
+              {formData.image && (
+                <div className="mt-4 h-40 rounded-xl overflow-hidden border border-slate-200 relative bg-slate-100 shadow-sm">
+                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
                 </div>
-              ))}
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase">Descripción de la Barbería</label>
+              <textarea name="description" rows={4} placeholder="Cuenta un poco sobre tu barbería para atraer clientes..." className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-slate-900 resize-none" value={formData.description} onChange={handleChange} />
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <Button type="submit" className="gap-2" disabled={saving}>
+                <Save size={16} />
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
             </div>
           </CardContent>
         </Card>
-
-        <div className="flex justify-end gap-3">
-          <Button variant="outline">Cancelar Cambios</Button>
-          <Button className="gap-2">
-            <Save size={18} />
-            Guardar Configuración
-          </Button>
-        </div>
-      </div>
+      </form>
     </div>
   );
 };
