@@ -1,5 +1,5 @@
 // Centralized API client for BarberAutomate frontend
-const BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:4000';
+const BASE_URL = 'https://barberautomate-843371818846.europe-southwest1.run.app';
 function getToken(): string | null {
   return localStorage.getItem('ba_token');
 }
