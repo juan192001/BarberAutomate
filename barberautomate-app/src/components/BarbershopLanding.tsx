@@ -18,6 +18,7 @@ import { cn } from '../lib/utils';
 interface BarbershopLandingProps {
   onLogin: () => void;
   onSignUp: () => void;
+  onBack?: () => void;
 }
 
 export const BarbershopLanding = ({ onLogin, onSignUp }: BarbershopLandingProps) => {

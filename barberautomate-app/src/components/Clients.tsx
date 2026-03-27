@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, UserPlus, Mail, Phone, Calendar, MoreVertical, ExternalLink } from 'lucide-react';
+import { Search, UserPlus, Mail, Phone, Calendar, MoreVertical, ExternalLink, FileText } from 'lucide-react';
 import { Card, CardContent, Badge, Button } from './UI';
 import { clientsApi } from '../lib/api';
 import { cn } from '../lib/utils';

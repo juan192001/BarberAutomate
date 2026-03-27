@@ -3,7 +3,14 @@ import { Search, Filter, MoreHorizontal, Calendar, Clock, User, Scissors } from 
 import { Card, CardHeader, CardContent, Badge, Button } from './UI';
 import { Reservation } from '../types';
 
-export const Reservations = ({ reservations, onNewReservation }: { reservations: Reservation[], onNewReservation: () => void }) => {
+// <-- CREAMOS LA INTERFAZ AQUÍ PARA QUE SEA MÁS LIMPIO Y AÑADIMOS EL onStatusChange -->
+interface ReservationsProps {
+  reservations: Reservation[];
+  onNewReservation: () => void;
+  onStatusChange?: (id: string, status: string) => void;
+}
+
+export const Reservations = ({ reservations, onNewReservation, onStatusChange }: ReservationsProps) => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -109,10 +116,10 @@ export const Reservations = ({ reservations, onNewReservation }: { reservations:
         </div>
         
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-          <p className="text-xs text-slate-500">Mostrando 5 de 128 reservas</p>
+          <p className="text-xs text-slate-500">Mostrando {reservations.length} reservas</p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>Anterior</Button>
-            <Button variant="outline" size="sm">Siguiente</Button>
+            <Button variant="outline" size="sm" disabled={reservations.length === 0}>Siguiente</Button>
           </div>
         </div>
       </Card>

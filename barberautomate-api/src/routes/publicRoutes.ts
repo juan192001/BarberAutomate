@@ -107,10 +107,10 @@ router.post('/bookings', async (req: Request, res: Response) => {
       }
     }
 
-    const reservation = await db.execute({
-      sql: 'SELECT * FROM reservations WHERE id = ?',
-      args: [insertResult.lastInsertRowid]
-    });
+   const reservation = await db.execute({
+  sql: 'SELECT * FROM reservations WHERE id = ?',
+  args: [Number(insertResult.lastInsertRowid)]
+});
 
     res.status(201).json({ success: true, reservation: reservation.rows[0] });
   } catch (err) {

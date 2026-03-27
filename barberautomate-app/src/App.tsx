@@ -215,7 +215,7 @@ export default function App() {
           <Reservations
             reservations={reservations}
             onNewReservation={() => setIsModalOpen(true)}
-            onStatusChange={async (id, status) => {
+            onStatusChange={async (id: string, status: string) => {
               const updated = await reservationsApi.updateStatus(id, status);
               setReservations(prev => prev.map(r => r.id === String(id) ? { ...r, status: updated.status } : r));
             }}
