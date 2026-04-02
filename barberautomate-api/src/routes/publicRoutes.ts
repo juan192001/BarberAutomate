@@ -3,6 +3,9 @@ import { db } from '../database.js';
 
 const router = Router();
 
+// URL de tu Webhook de n8n (Copia la 'Test URL' o 'Production URL' de n8n)
+const N8N_WEBHOOK_URL = 'http://34.41.155.111:5678/webhook-test/2068a655-eb0a-47da-8cf8-61a811c62cbc';
+
 router.get('/barbershops', async (req: Request, res: Response) => {
   try {
     const { q } = req.query;
@@ -55,7 +58,6 @@ router.get('/barbershops/:id/booked-times', async (req: Request, res: Response) 
       sql: `SELECT time FROM reservations 
             WHERE barbershop_id = ? AND (barber_id = ? OR barber_name = ?) 
             AND date = ? AND status != 'cancelled'`,
-      // AQUÍ ESTÁ EL CAMBIO: Forzamos el tipo con "as string"
       args: [
         req.params.id as string, 
         (barberId as string) || null, 
@@ -78,6 +80,7 @@ router.post('/bookings', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
 
+    // Comprobar conflicto de horario
     const conflict = await db.execute({
       sql: `SELECT id FROM reservations 
             WHERE barbershop_id = ? AND (barber_id = ? OR barber_name = ?) AND date = ? AND time = ? AND status != 'cancelled'`,
@@ -88,12 +91,14 @@ router.post('/bookings', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Este horario ya está reservado. Por favor elige otro.' });
     }
 
+    // Insertar la reserva en Turso
     const insertResult = await db.execute({
       sql: `INSERT INTO reservations (barbershop_id, client_name, client_email, client_phone, service_id, service_name, barber_id, barber_name, date, time, price, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       args: [barbershopId, clientName, clientEmail || null, clientPhone || null, serviceId || null, serviceName, barberId || null, barberName, date, time, price]
     });
 
+    // Gestión automática de clientes
     if (clientEmail) {
       const existing = await db.execute({
         sql: 'SELECT id FROM clients WHERE barbershop_id = ? AND email = ?',
@@ -107,13 +112,24 @@ router.post('/bookings', async (req: Request, res: Response) => {
       }
     }
 
-   const reservation = await db.execute({
-  sql: 'SELECT * FROM reservations WHERE id = ?',
-  args: [Number(insertResult.lastInsertRowid)]
-});
+    // Obtener la reserva completa para enviarla a n8n
+    const reservationResult = await db.execute({
+      sql: 'SELECT * FROM reservations WHERE id = ?',
+      args: [Number(insertResult.lastInsertRowid)]
+    });
+    const newReservation = reservationResult.rows[0];
 
-    res.status(201).json({ success: true, reservation: reservation.rows[0] });
+    // --- PASO 1: NOTIFICAR A N8N PARA GOOGLE CALENDAR ---
+    fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReservation) 
+    }).catch(err => console.error('Error enviando a n8n:', err));
+    // ----------------------------------------------------
+
+    res.status(201).json({ success: true, reservation: newReservation });
   } catch (err) {
+    console.error('Error al procesar reserva:', err);
     res.status(500).json({ error: 'Error al procesar la reserva' });
   }
 });
