@@ -1,8 +1,11 @@
 import { Router, Response } from 'express';
 import { db } from '../database.js';
-import { authMiddleware, AuthRequest } from '../auth.js'; // <-- IMPORTAMOS EL CANDADO
+import { authMiddleware, AuthRequest } from '../auth.js';
 
 const router = Router();
+
+// URL de tu Webhook de n8n con tu IP pública
+const N8N_WEBHOOK_URL = 'http://34.41.155.111:5678/webhook-test/2068a655-eb0a-47da-8cf8-61a811c62cbc';
 
 // 🔒 Aplicar el candado de seguridad a todas las rutas de este archivo
 router.use(authMiddleware);
@@ -12,7 +15,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { date } = req.query;
     let query = 'SELECT * FROM reservations WHERE barbershop_id = ?';
-    const args: any[] = [req.user!.barbershopId]; // Ya es seguro pedir el ID
+    const args: any[] = [req.user!.barbershopId];
 
     if (date) {
       query += ' AND date = ?';
@@ -28,7 +31,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/reservations (Crear una nueva reserva)
+// POST /api/reservations (Crear una nueva reserva desde el Panel Admin)
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { clientName, clientEmail, clientPhone, serviceId, serviceName, barberId, barberName, date, time, price, notes } = req.body;
@@ -43,7 +46,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(409).json({ error: 'El barbero ya tiene una cita asignada en ese horario.' });
     }
 
-    // 2. Insertar la reserva
+    // 2. Insertar la reserva en la base de datos
     const insertResult = await db.execute({
       sql: `INSERT INTO reservations (barbershop_id, client_name, client_email, client_phone, service_id, service_name, barber_id, barber_name, date, time, price, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -63,7 +66,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       ]
     });
 
-    // 3. Crear el cliente automáticamente si no existe en el directorio
+    // 3. Crear el cliente automáticamente si no existe
     const existingClient = await db.execute({
       sql: 'SELECT id FROM clients WHERE barbershop_id = ? AND name = ?',
       args: [req.user!.barbershopId, clientName || 'Sin Nombre']
@@ -76,20 +79,29 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // 4. Devolver la reserva creada al frontend
-    const reservation = await db.execute({
+    // 4. Obtener la reserva completa para mandarla a n8n
+    const result = await db.execute({
       sql: 'SELECT * FROM reservations WHERE id = ?',
       args: [insertResult.lastInsertRowid!]
     });
+    const newReservation = result.rows[0];
 
-    res.status(201).json(reservation.rows[0]);
+    // --- 🚀 PASO CLAVE: NOTIFICAR A N8N DESDE ADMIN ---
+    fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReservation)
+    }).catch(err => console.error('Error avisando a n8n desde Admin:', err));
+    // --------------------------------------------------
+
+    res.status(201).json(newReservation);
   } catch (err) {
     console.error('❌ Error creando reserva:', err);
     res.status(500).json({ error: 'Error al crear reserva' });
   }
 });
 
-// PATCH /api/reservations/:id/status (Actualizar estado: completada, cancelada)
+// PATCH /api/reservations/:id/status
 router.patch('/:id/status', async (req: AuthRequest, res: Response) => {
   try {
     const { status } = req.body;
